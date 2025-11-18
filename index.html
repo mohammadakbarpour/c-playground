@@ -27,7 +27,6 @@
 
   <style>
     :root {
-      /* Dark */
       --bg-color: #020617;
       --panel-bg: #020617;
       --panel-bg-elevated: #020617;
@@ -48,7 +47,6 @@
     }
 
     body.light {
-      /* Light */
       --bg-color: #f3f4f6;
       --panel-bg: #ffffff;
       --panel-bg-elevated: #ffffff;
@@ -82,7 +80,7 @@
       justify-content: center;
       align-items: center;
       padding: 1.25rem;
-      direction: ltr; /* برای ادیتور بهتره LTR باشه */
+      direction: ltr;
       overflow: hidden;
       font-size: 15px;
     }
@@ -140,6 +138,13 @@
       flex-shrink: 0;
     }
 
+    .header-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      min-width: 0;
+    }
+
     .brand-text-title {
       font-size: 1.15rem;
       font-weight: 600;
@@ -153,13 +158,6 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-
-    .header-text {
-      display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
-      min-width: 0;
     }
 
     .header-actions {
@@ -358,12 +356,20 @@
       height: 100%;
       background: transparent;
       color: var(--code-text);
-      font-size: 0.9rem;
+      font-size: 0.94rem;
       line-height: 1.5;
+    }
+
+    /* بزرگ‌تر شدن فونت روی دسکتاپ */
+    @media (min-width: 768px) {
+      .editor-body .CodeMirror {
+        font-size: 1.02rem;
+      }
     }
 
     .editor-body .CodeMirror-scroll {
       padding: 0.3rem 0.9rem 0.9rem 0.8rem;
+      overflow-x: auto; /* برای اسکرول افقی مطمئن */
     }
 
     .editor-body .CodeMirror-gutters {
@@ -618,7 +624,7 @@
       border-color: rgba(56, 189, 248, 0.5);
     }
 
-    .mobile-tab-nav button.mobile-run-btn {
+    .mobile-tab-nav button.mobile-copy-btn {
       flex-grow: 0;
       width: 95px;
       background: var(--accent-color-strong);
@@ -626,7 +632,7 @@
       border-color: transparent;
     }
 
-    .mobile-tab-nav button.mobile-run-btn:hover {
+    .mobile-tab-nav button.mobile-copy-btn:hover {
       filter: brightness(1.08);
     }
 
@@ -788,7 +794,7 @@ int main(void) {
               </button>
             </div>
 
-            <!-- به جای Press Ctrl + Enter to run -->
+            <!-- سوییچ wrap/scroll -->
             <div class="editor-wrap-toggle">
               <label for="wrapModeSelect">Code layout:</label>
               <select id="wrapModeSelect">
@@ -833,7 +839,7 @@ int main(void) {
     <nav class="mobile-tab-nav">
       <button id="mobile-tab-editor" type="button" class="is-active">Editor</button>
       <button id="mobile-tab-output" type="button">Output</button>
-      <button id="mobile-run-btn" type="button" class="mobile-run-btn">Run</button>
+      <button id="mobile-copy-btn" type="button" class="mobile-copy-btn">Copy</button>
     </nav>
 
     <footer class="footer">
@@ -844,6 +850,9 @@ int main(void) {
 
   <script>
     const BACKEND_URL = "https://compiler.sbs";
+
+    // متغیر برای ذخیره آخرین خروجی اجرا
+    let lastRunResult = null;
 
     // Theme toggle
     (function () {
@@ -880,7 +889,7 @@ int main(void) {
         lineNumbers: true,
         indentUnit: 4,
         indentWithTabs: false,
-        lineWrapping: true, // حالت پیش‌فرض: رفتن به خط بعد
+        lineWrapping: true, // پیش‌فرض wrap
         smartIndent: true,
         tabSize: 4,
         extraKeys: {
@@ -901,7 +910,7 @@ int main(void) {
       return editor;
     })();
 
-    // Line wrapping / horizontal scroll toggle
+    // Line wrapping / scroll toggle + حل شدن مشکل شماره خطوط در موبایل
     (function () {
       const select = document.getElementById("wrapModeSelect");
       if (!select) return;
@@ -909,12 +918,27 @@ int main(void) {
       function applyMode(mode) {
         const wrap = mode === "wrap";
         cmEditor.setOption("lineWrapping", wrap);
+
+        const isMobile = window.innerWidth <= 640;
+        // در موبایل + حالت scroll، شماره خطوط رو خاموش می‌کنیم که روی کد نیاد
+        if (isMobile && mode === "scroll") {
+          cmEditor.setOption("lineNumbers", false);
+        } else {
+          cmEditor.setOption("lineNumbers", true);
+        }
+
+        // برای اطمینان، بعد از تغییر تنظیمات، رفرش
+        setTimeout(() => cmEditor.refresh(), 0);
       }
 
       // مقدار اولیه
       applyMode(select.value);
 
       select.addEventListener("change", () => {
+        applyMode(select.value);
+      });
+
+      window.addEventListener("resize", () => {
         applyMode(select.value);
       });
     })();
@@ -929,7 +953,6 @@ int main(void) {
       const execMeta = document.getElementById("execMeta");
       const runDot = document.getElementById("runDot");
       const runSpinner = document.getElementById("runSpinner");
-      const mobileRunBtn = document.getElementById("mobile-run-btn");
 
       const defaultCode = cmEditor.getValue();
 
@@ -972,6 +995,7 @@ int main(void) {
           outputArea.innerHTML =
             '<span class="output-placeholder">Editor is empty — please write some C code and try again.</span>';
           execMeta.textContent = "Execution time: — · Exit code: —";
+          lastRunResult = null;
           return;
         }
 
@@ -990,11 +1014,13 @@ int main(void) {
 
           if (!response.ok) {
             const text = await response.text();
+            const errMsg = "HTTP error " + response.status + ":\n" + text;
             setStatus("Server error", true);
-            outputArea.textContent = "HTTP error " + response.status + ":\n" + text;
+            outputArea.textContent = errMsg;
             execMeta.textContent =
               "Execution time: ~" + took + " ms · Exit code: —";
             outputArea.classList.add("has-error");
+            lastRunResult = errMsg;
             return;
           }
 
@@ -1013,6 +1039,7 @@ int main(void) {
           if (!combined) combined = "(no output)";
 
           outputArea.textContent = combined;
+          lastRunResult = combined; // برای دکمه کپی
 
           const exitCode = data.error ? 1 : 0;
           const timeMs = typeof data.timeMs === "number" ? data.timeMs : took;
@@ -1032,20 +1059,19 @@ int main(void) {
             hasError
           );
         } catch (err) {
+          const msg =
+            "Could not reach backend:\n" + (err && err.message ? err.message : String(err));
           setStatus("Network error", true);
-          outputArea.textContent =
-            "Could not reach backend:\n" + (err.message || String(err));
+          outputArea.textContent = msg;
           execMeta.textContent = "Execution time: — · Exit code: —";
           outputArea.classList.add("has-error");
+          lastRunResult = msg;
         } finally {
           setRunningState(false);
         }
       }
 
       runBtn.addEventListener("click", runCode);
-      if (mobileRunBtn) {
-        mobileRunBtn.addEventListener("click", runCode);
-      }
 
       resetBtn.addEventListener("click", () => {
         cmEditor.setValue(defaultCode);
@@ -1055,6 +1081,7 @@ int main(void) {
         outputArea.classList.remove("has-error");
         execMeta.textContent = "Execution time: — · Exit code: —";
         setStatus("Ready · idle", false);
+        lastRunResult = null;
 
         const tabEditor = document.getElementById("mobile-tab-editor");
         if (tabEditor && window.innerWidth <= 640) {
@@ -1068,6 +1095,47 @@ int main(void) {
           runCode();
         }
       });
+
+      // در دسترس‌بودن تابع برای استفاده در صورت نیاز
+      window.__runCode = runCode;
+    })();
+
+    // Mobile copy button: کپی کد + در صورت وجود، خروجی آخر
+    (function () {
+      const copyBtn = document.getElementById("mobile-copy-btn");
+      if (!copyBtn) return;
+
+      async function copyToClipboard() {
+        let text = cmEditor.getValue();
+
+        if (lastRunResult) {
+          text += "\n\n/*\n--- Program output ---\n" + lastRunResult + "\n*/";
+        }
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            // fallback
+            const tmp = document.createElement("textarea");
+            tmp.value = text;
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand("copy");
+            document.body.removeChild(tmp);
+          }
+
+          const originalText = copyBtn.textContent;
+          copyBtn.textContent = "Copied";
+          setTimeout(() => {
+            copyBtn.textContent = originalText;
+          }, 1200);
+        } catch (e) {
+          alert("Copy failed: " + (e && e.message ? e.message : e));
+        }
+      }
+
+      copyBtn.addEventListener("click", copyToClipboard);
     })();
 
     // Desktop resizer
