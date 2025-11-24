@@ -3,24 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>سامانه تمرین برنامه‌نویسی</title>
+  <title>سامانه برنامه‌نویسی C</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <div class="container">
     <div class="card" id="loginCard">
-      <div class="logo">سیستم جامع تمرین C</div>
+      <div class="logo">سامانه برنامه‌نویسی C</div>
       <div id="loginAlert" class="alert"></div>
       
       <form id="loginForm">
         <div class="form-group">
           <label>شماره دانشجویی</label>
-          <input type="text" id="loginId" required placeholder="مثلاً: 14021234">
+          <input type="number" id="loginId" required placeholder="مثلاً: 14021234">
         </div>
         <div class="form-group">
           <label>رمز عبور</label>
-          <input type="password" id="loginPass" required placeholder="********">
+          <input type="password" id="loginPass" required>
         </div>
         <button type="submit" class="btn" id="loginBtn">ورود به سامانه</button>
       </form>
@@ -35,21 +35,35 @@
       <div id="regAlert" class="alert"></div>
 
       <form id="regForm">
-        <div class="form-group">
-          <label>نام</label>
-          <input type="text" id="regName" required>
+        <div class="row">
+          <div class="form-group half">
+            <label>نام <span class="req">*</span></label>
+            <input type="text" id="regName" required>
+          </div>
+          <div class="form-group half">
+            <label>نام خانوادگی <span class="req">*</span></label>
+            <input type="text" id="regLast" required>
+          </div>
         </div>
+
         <div class="form-group">
-          <label>نام خانوادگی</label>
-          <input type="text" id="regLast" required>
+          <label>شماره دانشجویی <span class="req">*</span></label>
+          <input type="number" id="regId" required placeholder="فقط اعداد انگلیسی">
         </div>
+
         <div class="form-group">
-          <label>شماره دانشجویی</label>
-          <input type="text" id="regId" required>
+          <label>ایمیل <span class="req">*</span></label>
+          <input type="email" id="regEmail" required placeholder="example@university.ac.ir">
         </div>
+
         <div class="form-group">
-          <label>رمز عبور</label>
-          <input type="password" id="regPass" required>
+          <label>شماره موبایل (اختیاری)</label>
+          <input type="tel" id="regMobile" placeholder="09xxxxxxxxx">
+        </div>
+
+        <div class="form-group">
+          <label>رمز عبور <span class="req">*</span></label>
+          <input type="password" id="regPass" required minlength="6">
         </div>
         
         <button type="submit" class="btn" id="regBtn">تکمیل ثبت‌نام</button>
@@ -61,16 +75,36 @@
     </div>
   </div>
 
+  <style>
+    /* استایل‌های اضافه برای فرم جدید */
+    .req { color: #ef4444; }
+    .row { display: flex; gap: 10px; }
+    .half { flex: 1; }
+    /* جلوگیری از تایپ عدد فارسی */
+    input[type=number] { direction: ltr; text-align: right; }
+  </style>
+
   <script>
     const API_URL = "https://compiler.sbs"; 
 
     const loginCard = document.getElementById('loginCard');
     const registerCard = document.getElementById('registerCard');
 
-    function showRegister() { loginCard.classList.add('hidden'); registerCard.classList.remove('hidden'); }
-    function showLogin() { registerCard.classList.add('hidden'); loginCard.classList.remove('hidden'); }
+    function showRegister() { 
+        loginCard.classList.add('hidden'); 
+        registerCard.classList.remove('hidden'); 
+        clearAlerts();
+    }
+    function showLogin() { 
+        registerCard.classList.add('hidden'); 
+        loginCard.classList.remove('hidden'); 
+        clearAlerts();
+    }
+    function clearAlerts() {
+        document.getElementById('loginAlert').style.display = 'none';
+        document.getElementById('regAlert').style.display = 'none';
+    }
 
-    // نمایش پیام خطا/موفقیت
     function showAlert(elementId, msg, type) {
       const el = document.getElementById(elementId);
       el.textContent = msg;
@@ -78,11 +112,12 @@
       el.style.display = 'block';
     }
 
-    // --- لاگین ---
+    // لاگین
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('loginBtn');
-      btn.textContent = 'در حال بررسی...';
+      const originalText = btn.textContent;
+      btn.textContent = '...';
       btn.disabled = true;
 
       const studentId = document.getElementById('loginId').value;
@@ -98,34 +133,36 @@
         const data = await res.json();
         
         if (res.ok) {
-          // ذخیره توکن در حافظه مرورگر
           localStorage.setItem('c_token', data.token);
           localStorage.setItem('c_role', data.role);
           localStorage.setItem('c_name', data.name);
-          
-          window.location.href = 'dashboard.html'; // رفتن به پنل
+          window.location.href = 'dashboard.html'; 
         } else {
           showAlert('loginAlert', data.error || 'خطا در ورود', 'error');
         }
       } catch (err) {
-        showAlert('loginAlert', 'خطای شبکه. لطفا اتصال را بررسی کنید.', 'error');
+        console.error(err);
+        showAlert('loginAlert', 'خطای اتصال به سرور. لطفاً فیلترشکن را خاموش و مجدد تلاش کنید.', 'error');
       } finally {
-        btn.textContent = 'ورود به سامانه';
+        btn.textContent = originalText;
         btn.disabled = false;
       }
     });
 
-    // --- ثبت نام ---
+    // ثبت نام
     document.getElementById('regForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('regBtn');
-      btn.textContent = 'در حال ثبت...';
+      const originalText = btn.textContent;
+      btn.textContent = 'در حال بررسی...';
       btn.disabled = true;
 
       const body = {
         firstName: document.getElementById('regName').value,
         lastName: document.getElementById('regLast').value,
         studentId: document.getElementById('regId').value,
+        email: document.getElementById('regEmail').value,
+        mobile: document.getElementById('regMobile').value,
         password: document.getElementById('regPass').value
       };
 
@@ -138,7 +175,7 @@
         const data = await res.json();
 
         if (res.ok) {
-          alert('ثبت‌نام با موفقیت انجام شد! حالا وارد شوید.');
+          alert('ثبت‌نام با موفقیت انجام شد!');
           showLogin();
         } else {
           showAlert('regAlert', data.error || 'خطا در ثبت‌نام', 'error');
@@ -146,7 +183,7 @@
       } catch (err) {
         showAlert('regAlert', 'خطای شبکه', 'error');
       } finally {
-        btn.textContent = 'تکمیل ثبت‌نام';
+        btn.textContent = originalText;
         btn.disabled = false;
       }
     });
