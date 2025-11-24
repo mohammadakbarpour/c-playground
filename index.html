@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سامانه تمرین برنامه‌نویسی</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="container">
+    <div class="card" id="loginCard">
+      <div class="logo">سیستم جامع تمرین C</div>
+      <div id="loginAlert" class="alert"></div>
+      
+      <form id="loginForm">
+        <div class="form-group">
+          <label>شماره دانشجویی</label>
+          <input type="text" id="loginId" required placeholder="مثلاً: 14021234">
+        </div>
+        <div class="form-group">
+          <label>رمز عبور</label>
+          <input type="password" id="loginPass" required placeholder="********">
+        </div>
+        <button type="submit" class="btn" id="loginBtn">ورود به سامانه</button>
+      </form>
+      
+      <div class="toggle-link">
+        حساب کاربری ندارید؟ <a onclick="showRegister()">ثبت‌نام کنید</a>
+      </div>
+    </div>
+
+    <div class="card hidden" id="registerCard">
+      <div class="logo">ثبت‌نام دانشجوی جدید</div>
+      <div id="regAlert" class="alert"></div>
+
+      <form id="regForm">
+        <div class="form-group">
+          <label>نام</label>
+          <input type="text" id="regName" required>
+        </div>
+        <div class="form-group">
+          <label>نام خانوادگی</label>
+          <input type="text" id="regLast" required>
+        </div>
+        <div class="form-group">
+          <label>شماره دانشجویی</label>
+          <input type="text" id="regId" required>
+        </div>
+        <div class="form-group">
+          <label>رمز عبور</label>
+          <input type="password" id="regPass" required>
+        </div>
+        
+        <button type="submit" class="btn" id="regBtn">تکمیل ثبت‌نام</button>
+      </form>
+
+      <div class="toggle-link">
+        قبلاً ثبت‌نام کرده‌اید؟ <a onclick="showLogin()">وارد شوید</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://compiler.sbs"; 
+
+    const loginCard = document.getElementById('loginCard');
+    const registerCard = document.getElementById('registerCard');
+
+    function showRegister() { loginCard.classList.add('hidden'); registerCard.classList.remove('hidden'); }
+    function showLogin() { registerCard.classList.add('hidden'); loginCard.classList.remove('hidden'); }
+
+    // نمایش پیام خطا/موفقیت
+    function showAlert(elementId, msg, type) {
+      const el = document.getElementById(elementId);
+      el.textContent = msg;
+      el.className = `alert ${type}`;
+      el.style.display = 'block';
+    }
+
+    // --- لاگین ---
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      btn.textContent = 'در حال بررسی...';
+      btn.disabled = true;
+
+      const studentId = document.getElementById('loginId').value;
+      const password = document.getElementById('loginPass').value;
+
+      try {
+        const res = await fetch(`${API_URL}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId, password })
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          // ذخیره توکن در حافظه مرورگر
+          localStorage.setItem('c_token', data.token);
+          localStorage.setItem('c_role', data.role);
+          localStorage.setItem('c_name', data.name);
+          
+          window.location.href = 'dashboard.html'; // رفتن به پنل
+        } else {
+          showAlert('loginAlert', data.error || 'خطا در ورود', 'error');
+        }
+      } catch (err) {
+        showAlert('loginAlert', 'خطای شبکه. لطفا اتصال را بررسی کنید.', 'error');
+      } finally {
+        btn.textContent = 'ورود به سامانه';
+        btn.disabled = false;
+      }
+    });
+
+    // --- ثبت نام ---
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('regBtn');
+      btn.textContent = 'در حال ثبت...';
+      btn.disabled = true;
+
+      const body = {
+        firstName: document.getElementById('regName').value,
+        lastName: document.getElementById('regLast').value,
+        studentId: document.getElementById('regId').value,
+        password: document.getElementById('regPass').value
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          alert('ثبت‌نام با موفقیت انجام شد! حالا وارد شوید.');
+          showLogin();
+        } else {
+          showAlert('regAlert', data.error || 'خطا در ثبت‌نام', 'error');
+        }
+      } catch (err) {
+        showAlert('regAlert', 'خطای شبکه', 'error');
+      } finally {
+        btn.textContent = 'تکمیل ثبت‌نام';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
